@@ -429,8 +429,8 @@ class Shard {
   constructor(
     public header: ShardHeader,
     public footer: ShardFooter,
-    public fileInfo: FileInfo,
-    public casInfo: CASInfo
+    public fileInfos: FileInfo[],
+    public casInfos: CASInfo[]
   ) {}
 
   public static parse(input: DataView): Shard {
@@ -445,12 +445,33 @@ class Shard {
       );
     }
 
+    const fileInfos = [];
     const fileInfoOffset = Number(footer.fileInfoOffset);
-    const [fileInfo, fileInfoSize] = FileInfo.parse(input, fileInfoOffset);
+    let pos = fileInfoOffset;
+    for (let i = 0; i < footer.fileLookupNumEntry; i++) {
+      const [fileInfo, fileInfoSize] = FileInfo.parse(input, pos);
+      fileInfos.push(fileInfo);
+      pos += fileInfoSize;
+    }
 
     const casInfoOffset = Number(footer.casInfoOffset);
-    const [casInfo, casInfoSize] = CASInfo.parse(input, casInfoOffset);
 
-    return new Shard(header, footer, fileInfo, casInfo);
+    if (pos != casInfoOffset) {
+      console.warn(
+        "FileInfo section offset + num bytes for the section does not match CAS info offset, expected " +
+          casInfoOffset +
+          " but got " +
+          pos
+      );
+    }
+
+    const casInfos = [];
+    for (let i = 0; i < footer.casLookupNumEntry; i++) {
+      const [casInfo, casInfoSize] = CASInfo.parse(input, pos);
+      casInfos.push(casInfo);
+      pos += casInfoSize;
+    }
+
+    return new Shard(header, footer, fileInfos, casInfos);
   }
 }
